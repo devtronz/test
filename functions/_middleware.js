@@ -6,12 +6,12 @@ export async function onRequest(context) {
 
   const url = new URL(request.url);
 
-  // ---- Site info ----
+  // ─── Site info ───
   const site = url.hostname;
   const page = url.pathname;
   const fullUrl = url.href;
 
-  // ---- Network ----
+  // ─── Network ───
   const ip =
     request.headers.get("cf-connecting-ip") ||
     request.headers.get("x-forwarded-for") ||
@@ -19,20 +19,20 @@ export async function onRequest(context) {
 
   const referer = request.headers.get("referer") || "direct";
 
-  // ---- Browser ----
+  // ─── Browser ───
   const userAgent = request.headers.get("user-agent") || "unknown";
   const language = request.headers.get("accept-language") || "unknown";
 
-  // ---- Cloudflare meta ----
+  // ─── Cloudflare meta ───
   const cf = request.cf || {};
   const country = cf.country || "unknown";
   const city = cf.city || "unknown";
   const timezone = cf.timezone || "unknown";
 
-  // ---- Reliable device detection ----
+  // ─── Device detection ───
   const deviceType = getDeviceType(userAgent);
 
-  // ---- Privacy-friendly fingerprint ----
+  // ─── Privacy-friendly fingerprint ───
   const fpSource = [
     userAgent,
     language,
@@ -42,34 +42,45 @@ export async function onRequest(context) {
 
   const fingerprint = await sha256(fpSource);
 
-  // ---- Telegram message ----
+  // ─── Telegram formatted message ───
   const message = `
-🧾 New Visit
+━━━━━━━━━━━━━━━
+🧾 *NEW VISIT*
+━━━━━━━━━━━━━━━
 
-🌐 Site: ${site}
-📄 Page: ${page}
-🔗 Full URL: ${fullUrl}
+🌐 *Site*
+• ${site}
 
-🧠 Fingerprint: ${fingerprint}
-🌍 IP: ${ip}
+📄 *Page*
+• ${page}
+• ${fullUrl}
 
-↩️ Referrer: ${referer}
+🌍 *Visitor*
+• IP: \`${ip}\`
+• Device: ${deviceType}
+• Country: ${country}
+• City: ${city}
+• Timezone: ${timezone}
 
-📍 Location: ${city}, ${country}
-⏰ Timezone: ${timezone}
-📱 Device: ${deviceType}
+🧠 *Fingerprint*
+• \`${fingerprint}\`
 
-🖥 UA: ${userAgent}
+↩️ *Referrer*
+• ${referer}
+
+🖥 *User-Agent*
+• ${userAgent}
 `.trim();
 
-  // ---- Send log to Telegram ----
+  // ─── Send to Telegram ───
   context.waitUntil(
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         chat_id: CHAT_ID,
-        text: message
+        text: message,
+        parse_mode: "Markdown"
       })
     })
   );
@@ -77,9 +88,9 @@ export async function onRequest(context) {
   return context.next();
 }
 
-// ================= HELPERS =================
+// ───────────────── HELPERS ─────────────────
 
-// Device detection (Apache/Nginx style)
+// Apache/Nginx-style device detection
 function getDeviceType(ua) {
   ua = ua.toLowerCase();
 
