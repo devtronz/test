@@ -1,50 +1,75 @@
 export async function onRequest(context) {
   const { request, env } = context;
 
-  // Only log real page loads
-  const accept = request.headers.get("accept") || "";
-  if (!accept.includes("text/html")) {
-    return context.next();
-  }
+  const BOT_TOKEN = env.BOT_TOKEN;
+  const CHAT_ID = env.CHAT_ID;
 
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const site = request.headers.get("Host") || "unknown-site";
+  // ---- Basic request info ----
   const url = new URL(request.url);
-  const page = url.pathname;
+  const ip =
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for") ||
+    "unknown";
 
-  // Referrer (domain only)
-  const rawRef = request.headers.get("Referer");
-  let referrer = "Direct";
-  if (rawRef) {
-    try {
-      referrer = new URL(rawRef).hostname;
-    } catch {
-      referrer = "Unknown";
-    }
-  }
+  const userAgent = request.headers.get("user-agent") || "unknown";
+  const language = request.headers.get("accept-language") || "unknown";
+  const referer = request.headers.get("referer") || "direct";
 
-  // Country (best available on free plan)
+  // ---- Cloudflare metadata ----
   const cf = request.cf || {};
-  const country = cf.country || "N/A";
+  const country = cf.country || "unknown";
+  const city = cf.city || "unknown";
+  const timezone = cf.timezone || "unknown";
+  const deviceType = cf.deviceType || "unknown";
 
-  const message =
-`👤 Visitor
-━━━━━━━━━━━━
-🌐 Site: ${site}
-📍 IP: ${ip}
-🌍 Country: ${country}
-📄 Page: ${page}
-🔗 Referrer: ${referrer}
-🕒 ${new Date().toLocaleString()}`;
+  // ---- Normal fingerprint (privacy-friendly) ----
+  const fpSource = [
+    userAgent,
+    language,
+    timezone,
+    deviceType
+  ].join("|");
 
-  await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: env.CHAT_ID,
-      text: message
+  const fingerprint = await sha256(fpSource);
+
+  // ---- Telegram message ----
+  const message = `
+🧾 New Visitor
+
+🌍 IP: ${ip}
+🧠 Fingerprint: ${fingerprint}
+
+📄 Page: ${url.pathname}
+🔗 Referrer: ${referer}
+
+🖥 UA: ${userAgent}
+🌐 Language: ${language}
+
+📍 Location: ${city}, ${country}
+⏰ Timezone: ${timezone}
+📱 Device: ${deviceType}
+`.trim();
+
+  // ---- Send to Telegram (fire & forget) ----
+  context.waitUntil(
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: message
+      })
     })
-  });
+  );
 
   return context.next();
+}
+
+// ---- SHA-256 helper ----
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hashBuffer)]
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
