@@ -4,25 +4,33 @@ export async function onRequest(context) {
   const BOT_TOKEN = env.BOT_TOKEN;
   const CHAT_ID = env.CHAT_ID;
 
-  // ---- Basic request info ----
   const url = new URL(request.url);
+
+  // ---- Site info ----
+  const site = url.hostname;
+  const page = url.pathname;
+  const fullUrl = url.href;
+
+  // ---- Network ----
   const ip =
     request.headers.get("cf-connecting-ip") ||
     request.headers.get("x-forwarded-for") ||
     "unknown";
 
-  const userAgent = request.headers.get("user-agent") || "unknown";
-  const language = request.headers.get("accept-language") || "unknown";
   const referer = request.headers.get("referer") || "direct";
 
-  // ---- Cloudflare metadata ----
+  // ---- Browser ----
+  const userAgent = request.headers.get("user-agent") || "unknown";
+  const language = request.headers.get("accept-language") || "unknown";
+
+  // ---- Cloudflare meta ----
   const cf = request.cf || {};
   const country = cf.country || "unknown";
   const city = cf.city || "unknown";
   const timezone = cf.timezone || "unknown";
   const deviceType = cf.deviceType || "unknown";
 
-  // ---- Normal fingerprint (privacy-friendly) ----
+  // ---- Normal fingerprint ----
   const fpSource = [
     userAgent,
     language,
@@ -34,23 +42,24 @@ export async function onRequest(context) {
 
   // ---- Telegram message ----
   const message = `
-🧾 New Visitor
+🧾 New Visit
 
-🌍 IP: ${ip}
+🌐 Site: ${site}
+📄 Page: ${page}
+🔗 Full URL: ${fullUrl}
+
 🧠 Fingerprint: ${fingerprint}
+🌍 IP: ${ip}
 
-📄 Page: ${url.pathname}
-🔗 Referrer: ${referer}
-
-🖥 UA: ${userAgent}
-🌐 Language: ${language}
+↩️ Referrer: ${referer}
 
 📍 Location: ${city}, ${country}
 ⏰ Timezone: ${timezone}
 📱 Device: ${deviceType}
+
+🖥 UA: ${userAgent}
 `.trim();
 
-  // ---- Send to Telegram (fire & forget) ----
   context.waitUntil(
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
