@@ -28,9 +28,11 @@ export async function onRequest(context) {
   const country = cf.country || "unknown";
   const city = cf.city || "unknown";
   const timezone = cf.timezone || "unknown";
-  const deviceType = cf.deviceType || "unknown";
 
-  // ---- Normal fingerprint ----
+  // ---- Reliable device detection ----
+  const deviceType = getDeviceType(userAgent);
+
+  // ---- Privacy-friendly fingerprint ----
   const fpSource = [
     userAgent,
     language,
@@ -60,6 +62,7 @@ export async function onRequest(context) {
 🖥 UA: ${userAgent}
 `.trim();
 
+  // ---- Send log to Telegram ----
   context.waitUntil(
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
@@ -74,7 +77,19 @@ export async function onRequest(context) {
   return context.next();
 }
 
-// ---- SHA-256 helper ----
+// ================= HELPERS =================
+
+// Device detection (Apache/Nginx style)
+function getDeviceType(ua) {
+  ua = ua.toLowerCase();
+
+  if (/bot|crawler|spider|crawling/.test(ua)) return "Bot";
+  if (/tablet|ipad/.test(ua)) return "Tablet";
+  if (/mobile|android|iphone|ipod/.test(ua)) return "Mobile";
+  return "Desktop";
+}
+
+// SHA-256 hash
 async function sha256(text) {
   const data = new TextEncoder().encode(text);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
